@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Rehabilitación de Rodilla</title>
+<style>
+  :root {
+    --azul: #1F4E79;
+    --azul-claro: #DCE6F1;
+    --fondo: #f4f6f8;
+    --texto: #1a1a1a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--fondo);
+    margin: 0;
+    color: var(--texto);
+  }
+  header {
+    background: var(--azul);
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  nav button {
+    background: none;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 4px;
+  }
+  nav button.activo, nav button:hover {
+    background: rgba(255,255,255,0.15);
+  }
+  main {
+    max-width: 900px;
+    margin: 24px auto;
+    padding: 0 16px;
+  }
+  .card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  input, select {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    margin: 6px 0 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  button.primario {
+    background: var(--azul);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button.primario:hover { background: #163a5c; }
+  .oculto { display: none; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
+  .error { color: #c0392b; font-size: 14px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <strong>🦵 Rehabilitación de Rodilla</strong>
+  <nav id="nav-app" class="oculto">
+    <button onclick="mostrarSeccion('pacientes')">Pacientes</button>
+    <button onclick="mostrarSeccion('ejercicicos')">Ejercicios</button>
+    <button onclick="cerrarSesion()">Cerrar sesión</button>
+  </nav>
+</header>
+
+<main>
+    <section id="seccion-ejercicios" class="card oculto">
+        <h2>Ejercicios</h2>
+
+        <table>
+            <thead><tr><th>Nombre</th><th>ID</th></tr></thead>
+            tbody id="tabla-ejercicios-body"></tbody>
+        </table>
+
+        <hr>
+
+        <h3>Registrar nuevo ejercicio</h3>
+        <input type="text" id="nuevo-ejercicio-nombre" placeholder="Nombre del ejercicio">
+        <button class="primario" onclick="crearEjercicio()">Registrar ejercicio</button>
+        <p class="error" id="ejercicio-error"></p>
+    </section>
+
+  <section id="seccion-login" class="card">
+    <h2>Iniciar sesión</h2>
+    <input type="email" id="login-email" placeholder="Email">
+    <input type="password" id="login-password" placeholder="Contraseña">
+    <button class="primario" onclick="login()">Entrar</button>
+    <p class="error" id="login-error"></p>
+  </section>
+
+  <section id="seccion-pacientes" class="card oculto">
+  <h2>Pacientes</h2>
+
+  <table id="tabla-pacientes">
+    <thead>
+      <tr><th>Nombre</th><th>Edad</th><th>Diagnóstico</th><th></th></tr>
+    </thead>
+    <tbody id="tabla-pacientes-body"></tbody>
+  </table>
+
+  <hr>
+
+  <h3>Registrar nuevo paciente</h3>
+  <input type="text" id="nuevo-nombre" placeholder="Nombre">
+  <input type="number" id="nuevo-edad" placeholder="Edad">
+  <input type="text" id="nuevo-diagnostico" placeholder="Diagnóstico">
+  <button class="primario" onclick="crearPaciente()">Registrar paciente</button>
+  <p class="error" id="paciente-error"></p>
+</section>
+<section id="seccion-detalle-paciente" class="card oculto">
+  <button onclick="mostrarSeccion('pacientes')">← Volver a pacientes</button>
+  <h2 id="detalle-nombre-paciente"></h2>
+
+  <h3>Historial de sesiones</h3>
+  <table>
+    <thead><tr><th>Fecha</th><th>ID</th><th></th></tr></thead>
+    <tbody id="tabla-sesiones-body"></tbody>
+  </table>
+
+  <hr>
+  <h3>Progreso del paciente</h3>
+    <canvas id="grafica-progreso" height="100"></canvas>
+
+  <h3>Registrar nueva sesión</h3>
+  <input type="date" id="nueva-fecha">
+  <button class="primario" onclick="crearSesion()">Crear sesión</button>
+  <p class="error" id="sesion-error"></p>
+
+  <hr>
+
+  <div id="resultado-evaluacion"></div>
+</section>
+
+</main>
+
+<script>
+const API = "http://127.0.0.1:8000";
+let token = null;
+
+async function login() {
+  const email = document.getElementById("login-email").value;
+  const password = document.getElementById("login-password").value;
+
+  const res = await fetch(`${API}/fisioterapeutas/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+
+  if (!res.ok) {
+    document.getElementById("login-error").innerText = "Email o contraseña incorrectos";
+    return;
+  }
+
+  const data = await res.json();
+  token = data.access_token;
+
+  document.getElementById("seccion-login").classList.add("oculto");
+  document.getElementById("nav-app").classList.remove("oculto");
+  mostrarSeccion("pacientes");
+}
+async function cargarPacientes() {
+  const res = await fetch(`${API}/paciente/`, {
+    headers: { "Authorization": `Bearer ${token}` }
+  });
+
+  if (!res.ok) {
+    console.error("Error al cargar pacientes");
+    return;
+  }
+
+  const pacientes = await res.json();
+  const tbody = document.getElementById("tabla-pacientes-body");
+  tbody.innerHTML = "";
+
+  pacientes.forEach(p => {
+    const fila = document.createElement("tr");
+    fila.innerHTML = `
+      <td>${p.nombre}</td>
+      <td>${p.edad}</td>
+      <td>${p.diagnostico}</td>
+      <td><button onclick="verSesiones(${p.id}, '${p.nombre}')">Ver sesiones</button></td>
+    `;
+    tbody.appendChild(fila);
+  });
+}
+
+async function crearPaciente() {
+  const nombre = document.getElementById("nuevo-nombre").value;
+  const edad = parseInt(document.getElementById("nuevo-edad").value);
+  const diagnostico = document.getElementById("nuevo-diagnostico").value;
+
+  const res = await fetch(`${API}/pacientes/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({ nombre, edad, diagnostico })
+  });
+
+  if (!res.ok) {
+    document.getElementById("paciente-error").innerText = "Error al registrar paciente";
+    return;
+  }
+
+  document.getElementById("nuevo-nombre").value = "";
+  document.getElementById("nuevo-edad").value = "";
+  document.getElementById("nuevo-diagnostico").value = "";
+  document.getElementById("paciente-error").innerText = "";
+
+  cargarPacientes();
+}
+
+async function crearEjercicio() {
+  const nombre = document.getElementById("nuevo-ejercicio-nombre").value;
+
+  const res = await fetch(`${API}/ejercicios/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({ nombre })
+  });
+
+  if (!res.ok) {
+    document.getElementById("ejercicio-error").innerText = "Error al registrar ejercicio";
+    return;
+  }
+
+  document.getElementById("nuevo-ejercicio-nombre").value = "";
+  document.getElementById("ejercicio-error").innerText = "";
+
+  cargarEjercicios();
+}
+
+let pacienteActualId = null;
+
+async function verSesiones(pacienteId, nombrePaciente) {
+  pacienteActualId = pacienteId;
+  document.getElementById("detalle-nombre-paciente").innerText = `Sesiones de ${nombrePaciente}`;
+  document.querySelectorAll("main > section").forEach(s => s.classList.add("oculto"));
+  document.getElementById("seccion-detalle-paciente").classList.remove("oculto");
+
+  const res = await fetch(`${API}/pacientes/${pacienteId}/sesiones`, {
+    headers: { "Authorization": `Bearer ${token}` }
+  });
+
+  const tbody = document.getElementById("tabla-sesiones-body");
+  tbody.innerHTML = "";
+
+  if (!res.ok) {
+    tbody.innerHTML = `<tr><td colspan="3">Este paciente aún no tiene sesiones</td></tr>`;
+    return;
+  }
+
+  const sesiones = await res.json();
+  sesiones.forEach(s => {
+    const fila = document.createElement("tr");
+    fila.innerHTML = `
+      <td>${s.fecha}</td>
+      <td>${s.id}</td>
+      <td><button onclick="verEvaluacion(${s.id})">Ver evaluación IA</button></td>
+      <button onclick="simularMovimientos(${s.id})">Simular movimientos</button>
+    `;
+    tbody.appendChild(fila);
+  });
+  cargarGrafica(pacienteId); // agregar esta línea al final
+}
+
+async function crearSesion() {
+  const fecha = document.getElementById("nueva-fecha").value;
+
+  const res = await fetch(`${API}/sesiones/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({ paciente_id: pacienteActualId, fecha })
+  });
+
+  if (!res.ok) {
+    document.getElementById("sesion-error").innerText = "Error al crear la sesión";
+    return;
+  }
+
+  document.getElementById("nueva-fecha").value = "";
+  verSesiones(pacienteActualId, document.getElementById("detalle-nombre-paciente").innerText.replace("Sesiones de ", ""));
+}
+
+async function verEvaluacion(sesionId) {
+  const res = await fetch(`${API}/evaluar/${sesionId}`, {
+    headers: { "Authorization": `Bearer ${token}` }
+  });
+
+  const div = document.getElementById("resultado-evaluacion");
+
+  if (!res.ok) {
+    div.innerHTML = `<p class="error">No hay movimientos registrados en esta sesión aún.</p>`;
+    return;
+  }
+
+  const data = await res.json();
+  div.innerHTML = `
+    <h3>Evaluación IA — Sesión ${sesionId}</h3>
+    <p><b>Promedio actual:</b> ${data.promedio_actual}°</p>
+    <p><b>Máximo alcanzado:</b> ${data.maximo_alcanzado}°</p>
+    <p><b>Ángulo objetivo recomendado:</b> ${data.angulo_objetivo_recomendado}°</p>
+    <p><b>Días estimados de recuperación:</b> ${data.dias_estimados_recuperacion}</p>
+  `;
+}
+
+function cerrarSesion() {
+  token = null;
+  document.getElementById("seccion-login").classList.remove("oculto");
+  document.getElementById("nav-app").classList.add("oculto");
+}
+
+function mostrarSeccion(nombre) {
+  document.querySelectorAll("main > section").forEach(s => s.classList.add("oculto"));
+  document.getElementById(`seccion-${nombre}`).classList.remove("oculto");
+  if (nombre === "pacientes") cargarPacientes();
+}
+
+let graficaActual = null;
+
+async function cargarGrafica(pacienteId) {
+  const res = await fetch(`${API}/pacientes/${pacienteId}/progreso`, {
+    headers: { "Authorization": `Bearer ${token}` }
+  });
+
+  if (!res.ok) return;
+
+  const progreso = await res.json();
+
+  const fechas = progreso.map(p => p.fecha);
+  const promedios = progreso.map(p => p.promedio);
+
+  const ctx = document.getElementById("grafica-progreso");
+
+  if (graficaActual) {
+    graficaActual.destroy();
+  }
+
+  graficaActual = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: fechas,
+      datasets: [{
+        label: "Ángulo promedio por sesión",
+        data: promedios,
+        borderColor: "#1F4E79",
+        backgroundColor: "#DCE6F1",
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      scales: {
+        y: { beginAtZero: true, max: 140, title: { display: true, text: "Grados" } }
+      }
+    }
+  });
+}
+async function simularMovimientos(sesionId) {
+  const res = await fetch(`${API}/simular/${sesionId}`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${token}` }
+  });
+
+  if (!res.ok) {
+    alert("Error al simular movimientos");
+    return;
+  }
+
+  alert("Movimientos simulados correctamente");
+  cargarGrafica(pacienteActualId);
+}
+</script>
+</body>
+</html>
